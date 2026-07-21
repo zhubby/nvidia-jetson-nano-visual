@@ -1,0 +1,17 @@
+# JetPack 4.x ships an older Python stack. These pins keep the web service
+# installable on Python 3.6 while still working on newer development machines.
+Flask==2.0.3
+Werkzeug==2.0.3
+Jinja2==3.0.3
+itsdangerous==2.0.1
+click==8.0.4
+numpy==1.19.5; python_version < "3.8"
+numpy>=1.23; python_version >= "3.8"
+Pillow==8.4.0; python_version < "3.8"
+Pillow>=10.0.0; python_version >= "3.8"
+psutil==5.9.5; python_version < "3.8"
+psutil>=5.9.8; python_version >= "3.8"
+
+# Install OpenCV through JetPack/apt on Jetson Nano:
+#   sudo apt install python3-opencv v4l-utils
+# TensorRT/PyCUDA are provided by JetPack and are intentionally not pip-pinned.

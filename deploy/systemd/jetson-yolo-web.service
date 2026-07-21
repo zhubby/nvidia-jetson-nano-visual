@@ -1,0 +1,22 @@
+[Unit]
+Description=Jetson Nano YOLO Web Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jetson
+Group=jetson
+SupplementaryGroups=video
+WorkingDirectory=/opt/jetson-yolo-web/backend
+Environment=PYTHONPATH=/opt/jetson-yolo-web/backend
+Environment=JETSON_HOST=0.0.0.0
+Environment=JETSON_PORT=8000
+Environment=JETSON_CONFIG=/opt/jetson-yolo-web/backend/config.example.json
+Environment=JETSON_FRONTEND_DIST=/opt/jetson-yolo-web/frontend/dist
+ExecStart=/opt/jetson-yolo-web/.venv/bin/python -m jetson_yolo_web.app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

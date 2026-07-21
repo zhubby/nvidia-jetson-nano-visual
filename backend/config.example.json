@@ -1,0 +1,17 @@
+{
+  "camera_index": 0,
+  "camera_device": "",
+  "source": "camera",
+  "sample_video": "",
+  "resolution": {
+    "width": 640,
+    "height": 480
+  },
+  "confidence": 0.35,
+  "iou": 0.45,
+  "class_allowlist": [],
+  "model_path": "models/yolov8n_fp16.engine",
+  "detector_backend": "auto",
+  "jpeg_quality": 78,
+  "retry_interval_seconds": 2.0
+}
