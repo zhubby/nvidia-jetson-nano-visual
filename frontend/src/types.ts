@@ -16,6 +16,8 @@ export type Detection = {
 export type RuntimeConfig = {
   camera_index: number;
   camera_device: string;
+  camera_fourcc: string;
+  camera_fps: number;
   source: "camera" | "synthetic" | "video";
   sample_video: string;
   resolution: {
@@ -26,7 +28,7 @@ export type RuntimeConfig = {
   iou: number;
   class_allowlist: string[];
   model_path: string;
-  detector_backend: "auto" | "mock" | "tensorrt";
+  detector_backend: "auto" | "mock" | "opencv" | "tensorrt";
   jpeg_quality: number;
   retry_interval_seconds: number;
 };

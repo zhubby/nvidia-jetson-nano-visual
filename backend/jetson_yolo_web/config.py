@@ -6,6 +6,8 @@ from copy import deepcopy
 DEFAULT_CONFIG = {
     "camera_index": 0,
     "camera_device": "",
+    "camera_fourcc": "MJPG",
+    "camera_fps": 30,
     "source": "camera",
     "sample_video": "",
     "resolution": {"width": 640, "height": 480},
@@ -20,7 +22,7 @@ DEFAULT_CONFIG = {
 
 ALLOWED_KEYS = set(DEFAULT_CONFIG.keys())
 VALID_SOURCES = set(["camera", "synthetic", "video"])
-VALID_DETECTORS = set(["auto", "mock", "tensorrt"])
+VALID_DETECTORS = set(["auto", "mock", "opencv", "tensorrt"])
 
 
 class ConfigValidationError(ValueError):
@@ -67,6 +69,10 @@ def env_overrides(base=None):
         overrides["camera_index"] = _env_int("JETSON_CAMERA_INDEX", DEFAULT_CONFIG["camera_index"])
     if "JETSON_CAMERA_DEVICE" in os.environ:
         overrides["camera_device"] = os.environ.get("JETSON_CAMERA_DEVICE", "")
+    if "JETSON_CAMERA_FOURCC" in os.environ:
+        overrides["camera_fourcc"] = os.environ.get("JETSON_CAMERA_FOURCC", DEFAULT_CONFIG["camera_fourcc"])
+    if "JETSON_CAMERA_FPS" in os.environ:
+        overrides["camera_fps"] = _env_int("JETSON_CAMERA_FPS", DEFAULT_CONFIG["camera_fps"])
     if "JETSON_SOURCE" in os.environ:
         overrides["source"] = os.environ.get("JETSON_SOURCE", DEFAULT_CONFIG["source"])
     if "JETSON_SAMPLE_VIDEO" in os.environ:
@@ -117,6 +123,7 @@ def validate_config(config):
     height = _validate_int("resolution.height", resolution.get("height"), 120, 2160)
     normalized["resolution"] = {"width": width, "height": height}
     normalized["camera_index"] = _validate_int("camera_index", normalized.get("camera_index"), 0, 32)
+    normalized["camera_fps"] = _validate_int("camera_fps", normalized.get("camera_fps"), 1, 240)
 
     source = normalized.get("source")
     if source not in VALID_SOURCES:
@@ -141,12 +148,14 @@ def validate_config(config):
     else:
         raise ConfigValidationError("class_allowlist must be a list of class labels.")
 
-    for string_key in ("camera_device", "sample_video", "model_path"):
+    for string_key in ("camera_device", "camera_fourcc", "sample_video", "model_path"):
         value = normalized.get(string_key)
         if value is None:
             normalized[string_key] = ""
         elif not isinstance(value, str):
             raise ConfigValidationError("%s must be a string." % string_key)
+    if normalized["camera_fourcc"] and len(normalized["camera_fourcc"]) != 4:
+        raise ConfigValidationError("camera_fourcc must be a four-character code such as MJPG or YUYV.")
 
     return normalized
 

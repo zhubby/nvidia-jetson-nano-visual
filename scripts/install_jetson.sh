@@ -19,7 +19,12 @@ python3 -m venv --system-site-packages "$VENV_DIR"
 "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
 "$VENV_DIR/bin/python" -m pip install -r "$ROOT_DIR/backend/requirements.txt"
 
-if command -v npm >/dev/null 2>&1; then
+NODE_MAJOR=""
+if command -v node >/dev/null 2>&1; then
+  NODE_MAJOR="$(node --version | sed 's/^v//' | cut -d. -f1)"
+fi
+
+if command -v npm >/dev/null 2>&1 && [ "${NODE_MAJOR:-0}" -ge 20 ]; then
   (
     cd "$ROOT_DIR/frontend"
     if [ -f package-lock.json ]; then
@@ -29,8 +34,11 @@ if command -v npm >/dev/null 2>&1; then
     fi
     npm run build
   )
+elif [ -f "$ROOT_DIR/frontend/dist/index.html" ]; then
+  echo "Using committed frontend/dist assets. Install Node.js >=20 and npm only if you need to rebuild on-device."
 else
-  echo "npm not found; build frontend on another machine and copy frontend/dist." >&2
+  echo "No usable npm/Node.js build toolchain and frontend/dist is missing." >&2
+  echo "Build frontend on another machine, commit frontend/dist, or install Node.js >=20." >&2
 fi
 
 if [ "${INSTALL_SYSTEMD:-0}" = "1" ]; then

@@ -29,9 +29,7 @@ def draw_overlay(frame, detections, status_text=None):
         label = "%s %.0f%%" % (detection["label"], detection["confidence"] * 100)
         color = _color_for_label(detection["label"])
         draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
-        text_box = draw.textbbox((x1, y1), label, font=font)
-        text_w = text_box[2] - text_box[0]
-        text_h = text_box[3] - text_box[1]
+        text_w, text_h = _measure_text(draw, label, font)
         label_y = max(0, y1 - text_h - 8)
         draw.rectangle([x1, label_y, x1 + text_w + 10, label_y + text_h + 6], fill=color)
         draw.text((x1 + 5, label_y + 3), label, fill=(0, 0, 0), font=font)
@@ -81,6 +79,13 @@ def _color_for_label(label):
     seed = sum(ord(char) for char in label)
     palette = [ACCENT, WARNING, (31, 156, 255), (170, 238, 170), (232, 232, 232)]
     return palette[seed % len(palette)]
+
+
+def _measure_text(draw, text, font):
+    if hasattr(draw, "textbbox"):
+        text_box = draw.textbbox((0, 0), text, font=font)
+        return text_box[2] - text_box[0], text_box[3] - text_box[1]
+    return draw.textsize(text, font=font)
 
 
 def _draw_overlay_numpy(frame, detections):

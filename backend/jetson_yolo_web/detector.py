@@ -126,10 +126,16 @@ def build_detector(config):
     model_path = config.get("model_path", "")
     if backend == "mock":
         return MockDetector()
-    if backend == "auto" and not model_path:
-        return MockDetector()
-    if backend == "auto" and not os.path.exists(model_path):
-        return MockDetector()
+    if backend == "opencv":
+        return _build_opencv_detector(model_path)
+    if backend == "auto":
+        if model_path and os.path.exists(model_path) and model_path.endswith(".onnx"):
+            return _build_opencv_detector(model_path)
+        opencv_fallback = "models/yolov5n.onnx"
+        if os.path.exists(opencv_fallback):
+            return _build_opencv_detector(opencv_fallback)
+        if not model_path or not os.path.exists(model_path):
+            return MockDetector()
     if backend in ("auto", "tensorrt"):
         try:
             from .tensorrt_detector import TensorRTYOLODetector
@@ -140,6 +146,15 @@ def build_detector(config):
                 return MockDetector()
             return UnavailableDetector(str(exc))
     return MockDetector()
+
+
+def _build_opencv_detector(model_path):
+    try:
+        from .opencv_detector import OpenCVDNNYOLODetector
+
+        return OpenCVDNNYOLODetector(model_path, COCO_LABELS)
+    except Exception as exc:
+        return UnavailableDetector(str(exc))
 
 
 def filter_detections(detections, config):

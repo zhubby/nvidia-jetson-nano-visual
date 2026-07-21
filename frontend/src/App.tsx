@@ -35,6 +35,8 @@ const emptyStatus: RuntimeStatus = {
 const defaultConfig: RuntimeConfig = {
   camera_index: 0,
   camera_device: "",
+  camera_fourcc: "MJPG",
+  camera_fps: 30,
   source: "camera",
   sample_video: "",
   resolution: { width: 640, height: 480 },
@@ -350,6 +352,7 @@ function SettingsDrawer({
         <span>Detector</span>
         <select aria-label="Detector" value={config.detector_backend} onChange={(event) => update("detector_backend", event.target.value as RuntimeConfig["detector_backend"])}>
           <option value="auto">Auto</option>
+          <option value="opencv">OpenCV DNN</option>
           <option value="tensorrt">TensorRT</option>
           <option value="mock">Mock</option>
         </select>

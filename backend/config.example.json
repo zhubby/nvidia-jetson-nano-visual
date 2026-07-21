@@ -1,6 +1,8 @@
 {
   "camera_index": 0,
   "camera_device": "",
+  "camera_fourcc": "MJPG",
+  "camera_fps": 30,
   "source": "camera",
   "sample_video": "",
   "resolution": {

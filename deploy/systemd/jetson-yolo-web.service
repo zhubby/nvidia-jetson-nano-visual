@@ -5,9 +5,6 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=jetson
-Group=jetson
-SupplementaryGroups=video
 WorkingDirectory=/opt/jetson-yolo-web/backend
 Environment=PYTHONPATH=/opt/jetson-yolo-web/backend
 Environment=JETSON_HOST=0.0.0.0

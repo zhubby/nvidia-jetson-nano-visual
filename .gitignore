@@ -8,7 +8,7 @@ __pycache__/
 .coverage
 htmlcov/
 node_modules/
-frontend/dist/
+frontend/dist/**/*.map
 frontend/coverage/
 backend/captures/
 captures/*

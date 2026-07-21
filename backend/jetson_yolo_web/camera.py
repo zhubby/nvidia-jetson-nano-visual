@@ -57,11 +57,13 @@ class SyntheticCamera(BaseFrameSource):
 class OpenCVCamera(BaseFrameSource):
     name = "camera"
 
-    def __init__(self, camera_index=0, camera_device="", width=640, height=480):
+    def __init__(self, camera_index=0, camera_device="", width=640, height=480, fourcc="MJPG", fps=30):
         self.camera_index = int(camera_index)
         self.camera_device = camera_device
         self.width = int(width)
         self.height = int(height)
+        self.fourcc = fourcc
+        self.fps = int(fps)
         self._capture = None
 
     def open(self):
@@ -74,6 +76,10 @@ class OpenCVCamera(BaseFrameSource):
             raise CameraError("Unable to open USB camera source %r." % source)
         self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        if self.fourcc:
+            self._capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.fourcc))
+        if self.fps:
+            self._capture.set(cv2.CAP_PROP_FPS, self.fps)
 
     def read(self):
         if self._capture is None:
@@ -94,7 +100,7 @@ class VideoFileCamera(OpenCVCamera):
     name = "video"
 
     def __init__(self, path, width=640, height=480):
-        OpenCVCamera.__init__(self, 0, path, width, height)
+        OpenCVCamera.__init__(self, 0, path, width, height, "", 0)
         self.path = path
 
     def open(self):
@@ -122,7 +128,14 @@ def build_frame_source(config):
         return SyntheticCamera(width, height)
     if source == "video":
         return VideoFileCamera(config.get("sample_video", ""), width, height)
-    return OpenCVCamera(config.get("camera_index", 0), config.get("camera_device", ""), width, height)
+    return OpenCVCamera(
+        config.get("camera_index", 0),
+        config.get("camera_device", ""),
+        width,
+        height,
+        config.get("camera_fourcc", "MJPG"),
+        config.get("camera_fps", 30),
+    )
 
 
 def _load_cv2():

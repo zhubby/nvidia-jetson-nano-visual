@@ -26,13 +26,17 @@ def test_config_accepts_supported_sources_and_detector_backends():
         dict(
             DEFAULT_CONFIG,
             source="synthetic",
-            detector_backend="mock",
+            detector_backend="opencv",
+            camera_fourcc="MJPG",
+            camera_fps="30",
             resolution={"width": "640", "height": "480"},
         )
     )
 
     assert config["source"] == "synthetic"
-    assert config["detector_backend"] == "mock"
+    assert config["detector_backend"] == "opencv"
+    assert config["camera_fourcc"] == "MJPG"
+    assert config["camera_fps"] == 30
     assert config["resolution"] == {"width": 640, "height": 480}
 
 

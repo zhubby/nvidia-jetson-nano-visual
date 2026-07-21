@@ -16,7 +16,9 @@ The installer uses apt for JetPack-provided hardware packages:
 - `python3-pip`
 - `libopenblas-base`
 
-The Python virtual environment is created with `--system-site-packages` so it can import JetPack's OpenCV, TensorRT, CUDA, and PyCUDA packages.
+The Python virtual environment is created with `--system-site-packages` so it can import JetPack's OpenCV, TensorRT, and CUDA packages.
+
+This repository includes committed `frontend/dist` assets because JetPack 4.x images often ship old Node.js versions. On-device frontend rebuilds require Node.js 20 or newer; otherwise the installer uses the committed assets.
 
 ## 2. Camera Check
 
@@ -39,19 +41,27 @@ export JETSON_CAMERA_DEVICE=/dev/video2
 
 ## 3. Model Engine
 
-Generate a TensorRT engine on the target Jetson or a matching JetPack 4 container:
+For this Jetson Nano class of device, start with OpenCV DNN YOLO if PyCUDA or a TensorRT engine is not ready:
+
+```bash
+./scripts/download_yolo_onnx.sh
+export JETSON_DETECTOR=opencv
+export JETSON_MODEL_PATH=models/yolov5n.onnx
+```
+
+For optimized TensorRT, generate an engine on the target Jetson or a matching JetPack 4 container:
 
 ```bash
 ./scripts/export_yolo_engine.sh yolov8n.pt models
 ```
 
-The default runtime config expects:
+The default TensorRT config expects:
 
 ```text
 models/yolov8n_fp16.engine
 ```
 
-If the engine export fails or FPS is too low, use a smaller YOLO variant or lower image size. Keep `detector_backend=auto` during bring-up so the web app remains usable while the engine is missing.
+If the engine export fails or FPS is too low, use the OpenCV ONNX fallback, a smaller YOLO variant, or lower image size. Keep `detector_backend=auto` during bring-up so the web app remains usable while the engine is missing.
 
 ## 4. Run Manually
 

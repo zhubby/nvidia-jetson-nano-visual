@@ -29,6 +29,8 @@ const detectionsPayload = {
 const configPayload = {
   camera_index: 0,
   camera_device: "",
+  camera_fourcc: "MJPG",
+  camera_fps: 30,
   source: "synthetic",
   sample_video: "",
   resolution: { width: 640, height: 480 },

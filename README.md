@@ -42,7 +42,9 @@ Target baseline:
 
 ```bash
 ./scripts/install_jetson.sh
-./scripts/export_yolo_engine.sh yolov8n.pt models
+./scripts/download_yolo_onnx.sh
+# Optional TensorRT path, when PyCUDA and an engine-export environment are ready:
+# ./scripts/export_yolo_engine.sh yolov8n.pt models
 sudo INSTALL_SYSTEMD=1 ./scripts/install_jetson.sh
 sudo systemctl enable --now jetson-yolo-web
 ```
@@ -60,4 +62,4 @@ The web UI listens on `0.0.0.0:8000` by default. From another device on the same
 
 ## Notes
 
-Runtime does not depend on the latest `ultralytics` package. New YOLO models should be trained/exported outside the constrained JetPack Python environment, then deployed as `.engine` files under `models/`.
+Runtime does not depend on the latest `ultralytics` package. On older JetPack 4.x devices without PyCUDA, use `models/yolov5n.onnx` with `detector_backend=opencv` for real YOLO detection through OpenCV DNN. TensorRT `.engine` files remain the preferred optimized path when the target has the full TensorRT/PyCUDA runtime.
