@@ -45,9 +45,9 @@ Target baseline:
 ./scripts/download_yolo_onnx.sh
 # Optional TensorRT path, when PyCUDA and an engine-export environment are ready:
 # ./scripts/export_yolo_engine.sh yolov8n.pt models
-sudo INSTALL_SYSTEMD=1 ./scripts/install_jetson.sh
-sudo systemctl enable --now jetson-yolo-web
 ```
+
+The installer creates the Python environment, installs the systemd unit, enables it, and starts `jetson-yolo-web` by default. Set `INSTALL_SYSTEMD=0` to skip service installation, or `START_SYSTEMD=0` to install and enable the service without starting it immediately.
 
 The web UI listens on `0.0.0.0:8000` by default. From another device on the same LAN, open `http://<jetson-ip>:8000`.
 

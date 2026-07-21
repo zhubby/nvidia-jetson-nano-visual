@@ -10,4 +10,12 @@ export JETSON_PORT="${JETSON_PORT:-8000}"
 export JETSON_CONFIG="${JETSON_CONFIG:-$ROOT_DIR/backend/config.example.json}"
 export JETSON_FRONTEND_DIST="${JETSON_FRONTEND_DIST:-$ROOT_DIR/frontend/dist}"
 
-python3 -m jetson_yolo_web.app
+if [ -z "${PYTHON:-}" ]; then
+  if [ -x "$ROOT_DIR/.venv/bin/python" ]; then
+    PYTHON="$ROOT_DIR/.venv/bin/python"
+  else
+    PYTHON="python3"
+  fi
+fi
+
+exec "$PYTHON" -m jetson_yolo_web.app

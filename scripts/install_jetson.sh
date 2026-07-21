@@ -4,10 +4,19 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="${VENV_DIR:-$ROOT_DIR/.venv}"
 SERVICE_NAME="jetson-yolo-web.service"
+INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
+ENABLE_SYSTEMD="${ENABLE_SYSTEMD:-1}"
+START_SYSTEMD="${START_SYSTEMD:-1}"
+
+if [ "$(id -u)" -eq 0 ]; then
+  SUDO=()
+else
+  SUDO=(sudo)
+fi
 
 if command -v apt-get >/dev/null 2>&1; then
-  sudo apt-get update
-  sudo apt-get install -y \
+  "${SUDO[@]}" apt-get update
+  "${SUDO[@]}" apt-get install -y \
     libopenblas-base \
     python3-pip \
     python3-venv \
@@ -41,10 +50,17 @@ else
   echo "Build frontend on another machine, commit frontend/dist, or install Node.js >=20." >&2
 fi
 
-if [ "${INSTALL_SYSTEMD:-0}" = "1" ]; then
-  sudo cp "$ROOT_DIR/deploy/systemd/$SERVICE_NAME" "/etc/systemd/system/$SERVICE_NAME"
-  sudo systemctl daemon-reload
-  echo "Installed $SERVICE_NAME. Run: sudo systemctl enable --now jetson-yolo-web"
+if [ "$INSTALL_SYSTEMD" = "1" ]; then
+  "${SUDO[@]}" cp "$ROOT_DIR/deploy/systemd/$SERVICE_NAME" "/etc/systemd/system/$SERVICE_NAME"
+  "${SUDO[@]}" systemctl daemon-reload
+  if [ "$ENABLE_SYSTEMD" = "1" ]; then
+    if [ "$START_SYSTEMD" = "1" ]; then
+      "${SUDO[@]}" systemctl enable --now "$SERVICE_NAME"
+    else
+      "${SUDO[@]}" systemctl enable "$SERVICE_NAME"
+    fi
+  fi
+  echo "Installed $SERVICE_NAME. Disable with INSTALL_SYSTEMD=0, or skip startup with START_SYSTEMD=0."
 fi
 
 echo "Jetson setup complete."

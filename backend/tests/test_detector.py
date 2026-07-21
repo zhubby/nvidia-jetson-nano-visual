@@ -1,6 +1,7 @@
 import numpy as np
 
 from jetson_yolo_web.config import DEFAULT_CONFIG
+from jetson_yolo_web import detector as detector_module
 from jetson_yolo_web.detector import COCO_LABELS, MockDetector
 from jetson_yolo_web.yolo_postprocess import parse_yolo_output
 
@@ -53,3 +54,19 @@ def test_parse_yolov8_transposed_output_uses_class_scores():
     assert detections[0]["label"] == "bicycle"
     assert detections[0]["confidence"] == 0.91
     assert detections[0]["bbox"] == {"x1": 40, "y1": 45, "x2": 60, "y2": 75}
+
+
+def test_auto_detector_prefers_existing_tensorrt_engine(monkeypatch, tmp_path):
+    engine_path = tmp_path / "model.engine"
+    engine_path.write_bytes(b"engine")
+    expected = MockDetector()
+
+    def build_tensorrt(path):
+        assert path == str(engine_path)
+        return expected
+
+    monkeypatch.setattr(detector_module, "_build_tensorrt_detector", build_tensorrt)
+
+    config = dict(DEFAULT_CONFIG, detector_backend="auto", model_path=str(engine_path))
+
+    assert detector_module.build_detector(config) is expected

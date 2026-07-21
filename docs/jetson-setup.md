@@ -20,6 +20,8 @@ The Python virtual environment is created with `--system-site-packages` so it ca
 
 This repository includes committed `frontend/dist` assets because JetPack 4.x images often ship old Node.js versions. On-device frontend rebuilds require Node.js 20 or newer; otherwise the installer uses the committed assets.
 
+The installer also installs, enables, and starts the systemd service by default. Use `INSTALL_SYSTEMD=0 ./scripts/install_jetson.sh` when you only want dependencies, or `START_SYSTEMD=0 ./scripts/install_jetson.sh` when you want the service installed for the next reboot without starting it now.
+
 ## 2. Camera Check
 
 ```bash
@@ -75,12 +77,10 @@ Then open:
 http://<jetson-ip>:8000
 ```
 
-## 5. Install systemd Service
+## 5. systemd Service
 
 ```bash
-sudo INSTALL_SYSTEMD=1 ./scripts/install_jetson.sh
-sudo systemctl enable --now jetson-yolo-web
 sudo journalctl -u jetson-yolo-web -f
 ```
 
-The service runs from the repository path by default. For production, place the repo at `/opt/jetson-yolo-web` or edit `deploy/systemd/jetson-yolo-web.service` before installing.
+The service runs from `/opt/jetson-yolo-web` by default and starts automatically after reboot. For a different production path, edit `deploy/systemd/jetson-yolo-web.service` before installing.

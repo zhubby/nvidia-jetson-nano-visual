@@ -11,7 +11,13 @@ Environment=JETSON_HOST=0.0.0.0
 Environment=JETSON_PORT=8000
 Environment=JETSON_CONFIG=/opt/jetson-yolo-web/backend/config.example.json
 Environment=JETSON_FRONTEND_DIST=/opt/jetson-yolo-web/frontend/dist
-ExecStart=/opt/jetson-yolo-web/.venv/bin/python -m jetson_yolo_web.app
+Environment=JETSON_SOURCE=camera
+Environment=JETSON_CAMERA_INDEX=0
+Environment=JETSON_CAMERA_FOURCC=MJPG
+Environment=JETSON_CAMERA_FPS=30
+Environment=JETSON_DETECTOR=auto
+Environment=JETSON_MODEL_PATH=models/yolov5n_fp16.engine
+ExecStart=/opt/jetson-yolo-web/scripts/run_backend.sh
 Restart=always
 RestartSec=3
 
