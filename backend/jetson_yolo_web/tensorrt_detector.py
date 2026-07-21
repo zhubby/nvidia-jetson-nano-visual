@@ -24,13 +24,23 @@ class TensorRTYOLODetector(object):
             raise RuntimeError("TensorRT engine not found: %s" % engine_path)
         try:
             import tensorrt as trt
-            import pycuda.autoinit  # noqa: F401
-            import pycuda.driver as cuda
         except ImportError as exc:
-            raise RuntimeError("TensorRT/PyCUDA import failed: %s" % exc)
+            raise RuntimeError("TensorRT import failed: %s" % exc)
 
         self.trt = trt
-        self.cuda = cuda
+        self.cuda = None
+        self.cuda_runtime = None
+        try:
+            import pycuda.autoinit  # noqa: F401
+            import pycuda.driver as cuda
+
+            self.cuda = cuda
+            self.cuda_mode = "pycuda"
+        except ImportError:
+            from .cuda_runtime import CudaRuntime
+
+            self.cuda_runtime = CudaRuntime()
+            self.cuda_mode = "ctypes"
         self.labels = labels
         self.logger = trt.Logger(trt.Logger.WARNING)
         with open(engine_path, "rb") as handle:
@@ -39,7 +49,7 @@ class TensorRTYOLODetector(object):
         if self.engine is None:
             raise RuntimeError("Unable to deserialize TensorRT engine.")
         self.context = self.engine.create_execution_context()
-        self.stream = cuda.Stream()
+        self.stream = self.cuda.Stream() if self.cuda_mode == "pycuda" else None
         self.bindings = []
         self.inputs = []
         self.outputs = []
@@ -55,14 +65,20 @@ class TensorRTYOLODetector(object):
             tensor = tensor.astype(np.float16)
 
         np.copyto(self.inputs[0]["host"], tensor.ravel())
-        self.cuda.memcpy_htod_async(self.inputs[0]["device"], self.inputs[0]["host"], self.stream)
-        self.context.execute_async_v2(bindings=self.bindings, stream_handle=self.stream.handle)
-        for output in self.outputs:
-            self.cuda.memcpy_dtoh_async(output["host"], output["device"], self.stream)
-        self.stream.synchronize()
+        if self.cuda_mode == "pycuda":
+            self.cuda.memcpy_htod_async(self.inputs[0]["device"], self.inputs[0]["host"], self.stream)
+            self.context.execute_async_v2(bindings=self.bindings, stream_handle=self.stream.handle)
+            for output in self.outputs:
+                self.cuda.memcpy_dtoh_async(output["host"], output["device"], self.stream)
+            self.stream.synchronize()
+        else:
+            self.cuda_runtime.memcpy_htod(self.inputs[0]["device"], self.inputs[0]["host"])
+            self.context.execute_v2(bindings=self.bindings)
+            for output in self.outputs:
+                self.cuda_runtime.memcpy_dtoh(output["host"], output["device"])
 
         raw_outputs = [output["host"].reshape(output["shape"]) for output in self.outputs]
-        detections = _parse_yolov8_output(
+        detections = _parse_yolo_output(
             raw_outputs[0],
             self.labels,
             ratio,
@@ -92,7 +108,6 @@ class TensorRTYOLODetector(object):
 
     def _allocate_buffers(self):
         trt = self.trt
-        cuda = self.cuda
         self.bindings = [None] * self.engine.num_bindings
         for index in range(self.engine.num_bindings):
             shape = tuple(self.context.get_binding_shape(index))
@@ -100,9 +115,15 @@ class TensorRTYOLODetector(object):
                 shape = tuple(self.engine.get_binding_shape(index))
             dtype = trt.nptype(self.engine.get_binding_dtype(index))
             size = int(trt.volume(shape))
-            host = cuda.pagelocked_empty(size, dtype)
-            device = cuda.mem_alloc(host.nbytes)
-            self.bindings[index] = int(device)
+            if self.cuda_mode == "pycuda":
+                host = self.cuda.pagelocked_empty(size, dtype)
+                device = self.cuda.mem_alloc(host.nbytes)
+                device_pointer = int(device)
+            else:
+                host = np.empty(size, dtype)
+                device_pointer = self.cuda_runtime.malloc(host.nbytes)
+                device = device_pointer
+            self.bindings[index] = int(device_pointer)
             binding = {"index": index, "shape": shape, "dtype": dtype, "host": host, "device": device}
             if self.engine.binding_is_input(index):
                 self.inputs.append(binding)
@@ -125,7 +146,7 @@ def _letterbox(frame, width, height):
     return np.asarray(canvas), ratio, (pad_x, pad_y)
 
 
-def _parse_yolov8_output(output, labels, ratio, pad, original_w, original_h, confidence_threshold, iou_threshold):
+def _parse_yolo_output(output, labels, ratio, pad, original_w, original_h, confidence_threshold, iou_threshold):
     output = np.squeeze(output)
     if output.ndim != 2:
         return []
@@ -138,9 +159,15 @@ def _parse_yolov8_output(output, labels, ratio, pad, original_w, original_h, con
     scores = []
     class_ids = []
     for row in output:
-        class_scores = row[4:]
-        class_id = int(np.argmax(class_scores))
-        score = float(class_scores[class_id])
+        if row.shape[0] >= 85:
+            objectness = float(row[4])
+            class_scores = row[5:]
+            class_id = int(np.argmax(class_scores))
+            score = objectness * float(class_scores[class_id])
+        else:
+            class_scores = row[4:]
+            class_id = int(np.argmax(class_scores))
+            score = float(class_scores[class_id])
         if score < confidence_threshold:
             continue
         cx, cy, w, h = row[:4]
