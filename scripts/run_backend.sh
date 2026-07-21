@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR/backend"
+cd "$ROOT_DIR"
 
-export PYTHONPATH="$PWD"
+export PYTHONPATH="$ROOT_DIR/backend"
 export JETSON_HOST="${JETSON_HOST:-0.0.0.0}"
 export JETSON_PORT="${JETSON_PORT:-8000}"
 export JETSON_CONFIG="${JETSON_CONFIG:-$ROOT_DIR/backend/config.example.json}"

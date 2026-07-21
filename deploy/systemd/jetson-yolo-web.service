@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/jetson-yolo-web/backend
+WorkingDirectory=/opt/jetson-yolo-web
 Environment=PYTHONPATH=/opt/jetson-yolo-web/backend
 Environment=JETSON_HOST=0.0.0.0
 Environment=JETSON_PORT=8000
