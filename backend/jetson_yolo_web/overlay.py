@@ -28,7 +28,7 @@ def draw_overlay(frame, detections, status_text=None):
         x1, y1, x2, y2 = bbox["x1"], bbox["y1"], bbox["x2"], bbox["y2"]
         label = "%s %.0f%%" % (detection["label"], detection["confidence"] * 100)
         color = _color_for_label(detection["label"])
-        draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
+        _draw_rectangle(draw, [x1, y1, x2, y2], color, 3)
         text_w, text_h = _measure_text(draw, label, font)
         label_y = max(0, y1 - text_h - 8)
         draw.rectangle([x1, label_y, x1 + text_w + 10, label_y + text_h + 6], fill=color)
@@ -86,6 +86,12 @@ def _measure_text(draw, text, font):
         text_box = draw.textbbox((0, 0), text, font=font)
         return text_box[2] - text_box[0], text_box[3] - text_box[1]
     return draw.textsize(text, font=font)
+
+
+def _draw_rectangle(draw, bounds, color, width):
+    x1, y1, x2, y2 = bounds
+    for offset in range(width):
+        draw.rectangle([x1 + offset, y1 + offset, x2 - offset, y2 - offset], outline=color)
 
 
 def _draw_overlay_numpy(frame, detections):
