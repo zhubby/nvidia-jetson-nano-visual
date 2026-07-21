@@ -1,11 +1,10 @@
-import math
 import os
-import time
 
 import numpy as np
 from PIL import Image
 
 from .detector import filter_detections
+from .yolo_postprocess import parse_yolo_output
 
 
 class TensorRTYOLODetector(object):
@@ -78,7 +77,7 @@ class TensorRTYOLODetector(object):
                 self.cuda_runtime.memcpy_dtoh(output["host"], output["device"])
 
         raw_outputs = [output["host"].reshape(output["shape"]) for output in self.outputs]
-        detections = _parse_yolo_output(
+        detections = parse_yolo_output(
             raw_outputs[0],
             self.labels,
             ratio,
@@ -138,90 +137,10 @@ def _letterbox(frame, width, height):
     ratio = min(float(width) / src_w, float(height) / src_h)
     resized_w = int(round(src_w * ratio))
     resized_h = int(round(src_h * ratio))
-    image = Image.fromarray(frame).resize((resized_w, resized_h), Image.BILINEAR)
+    image = Image.fromarray(frame[:, :, ::-1]).resize((resized_w, resized_h), Image.BILINEAR)
     canvas = Image.new("RGB", (width, height), (18, 20, 22))
     pad_x = (width - resized_w) // 2
     pad_y = (height - resized_h) // 2
     canvas.paste(image, (pad_x, pad_y))
     return np.asarray(canvas), ratio, (pad_x, pad_y)
 
-
-def _parse_yolo_output(output, labels, ratio, pad, original_w, original_h, confidence_threshold, iou_threshold):
-    output = np.squeeze(output)
-    if output.ndim != 2:
-        return []
-    if output.shape[0] < output.shape[1] and output.shape[0] <= 256:
-        output = output.T
-    if output.shape[1] < 6:
-        return []
-
-    boxes = []
-    scores = []
-    class_ids = []
-    for row in output:
-        if row.shape[0] >= 85:
-            objectness = float(row[4])
-            class_scores = row[5:]
-            class_id = int(np.argmax(class_scores))
-            score = objectness * float(class_scores[class_id])
-        else:
-            class_scores = row[4:]
-            class_id = int(np.argmax(class_scores))
-            score = float(class_scores[class_id])
-        if score < confidence_threshold:
-            continue
-        cx, cy, w, h = row[:4]
-        x1 = (cx - w / 2.0 - pad[0]) / ratio
-        y1 = (cy - h / 2.0 - pad[1]) / ratio
-        x2 = (cx + w / 2.0 - pad[0]) / ratio
-        y2 = (cy + h / 2.0 - pad[1]) / ratio
-        boxes.append([max(0, x1), max(0, y1), min(original_w, x2), min(original_h, y2)])
-        scores.append(score)
-        class_ids.append(class_id)
-
-    keep = _nms(boxes, scores, iou_threshold)
-    frame_ts = time.time()
-    detections = []
-    for index in keep:
-        class_id = class_ids[index]
-        label = labels[class_id] if class_id < len(labels) else "class_%s" % class_id
-        x1, y1, x2, y2 = boxes[index]
-        detections.append(
-            {
-                "label": label,
-                "confidence": round(scores[index], 4),
-                "bbox": {"x1": int(x1), "y1": int(y1), "x2": int(x2), "y2": int(y2)},
-                "frame_ts": frame_ts,
-                "class_id": class_id,
-            }
-        )
-    return detections
-
-
-def _nms(boxes, scores, threshold):
-    if not boxes:
-        return []
-    order = np.argsort(scores)[::-1]
-    keep = []
-    while order.size > 0:
-        current = int(order[0])
-        keep.append(current)
-        if order.size == 1:
-            break
-        rest = order[1:]
-        ious = np.array([_iou(boxes[current], boxes[int(candidate)]) for candidate in rest])
-        order = rest[ious <= threshold]
-    return keep
-
-
-def _iou(a, b):
-    ax1, ay1, ax2, ay2 = a
-    bx1, by1, bx2, by2 = b
-    inter_w = max(0.0, min(ax2, bx2) - max(ax1, bx1))
-    inter_h = max(0.0, min(ay2, by2) - max(ay1, by1))
-    intersection = inter_w * inter_h
-    if intersection <= 0:
-        return 0.0
-    area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
-    area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
-    return intersection / max(math.pow(10, -9), area_a + area_b - intersection)
