@@ -31,6 +31,9 @@ export type RuntimeConfig = {
   detector_backend: "auto" | "mock" | "opencv" | "tensorrt";
   jpeg_quality: number;
   retry_interval_seconds: number;
+  auto_snapshot_enabled: boolean;
+  auto_snapshot_label: string;
+  auto_snapshot_cooldown_seconds: number;
 };
 
 export type RuntimeStatus = {
@@ -58,6 +61,16 @@ export type RuntimeStatus = {
     used_mb: number;
     percent: number;
   } | null;
+  auto_snapshot: {
+    enabled: boolean;
+    label: string;
+    cooldown_seconds: number;
+    count: number;
+    last_trigger_ts: number | null;
+    last_image_path: string | null;
+    last_metadata_path: string | null;
+    last_error: string | null;
+  };
 };
 
 export type LatestDetectionsResponse = {

@@ -24,6 +24,8 @@ class RuntimeService(object):
         self._last_status = self._initial_status()
         self._frames = 0
         self._fps_window_started = time.time()
+        self._last_auto_snapshot_attempt_at = None
+        self._auto_snapshot_count = 0
 
     def start(self):
         with self._lock:
@@ -67,6 +69,9 @@ class RuntimeService(object):
     def status(self):
         with self._lock:
             status = json.loads(json.dumps(self._last_status))
+            status["auto_snapshot"]["enabled"] = bool(self.config.get("auto_snapshot_enabled", False))
+            status["auto_snapshot"]["label"] = self.config.get("auto_snapshot_label", "person")
+            status["auto_snapshot"]["cooldown_seconds"] = self.config.get("auto_snapshot_cooldown_seconds", 30.0)
         metrics = read_system_metrics()
         status.update(metrics)
         if metrics.get("temperature_c") and metrics["temperature_c"] >= 78:
@@ -99,15 +104,7 @@ class RuntimeService(object):
             jpeg = snapshot["jpeg"]
             detections = snapshot["detections"]
             frame_ts = snapshot["frame_ts"] or time.time()
-        stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(frame_ts))
-        image_path = os.path.join(directory, "snapshot-%s.jpg" % stamp)
-        json_path = os.path.join(directory, "snapshot-%s.json" % stamp)
-        with open(image_path, "wb") as handle:
-            handle.write(jpeg)
-        with open(json_path, "w") as handle:
-            json.dump({"frame_ts": frame_ts, "detections": detections}, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-        return {"image_path": image_path, "metadata_path": json_path, "detections": detections}
+        return self._write_snapshot(directory, "snapshot", "manual", jpeg, detections, frame_ts)
 
     def _run(self):
         while not self._stop_event.is_set():
@@ -124,6 +121,7 @@ class RuntimeService(object):
                 jpeg = encode_jpeg(overlay, self.config["jpeg_quality"])
                 self.buffer.publish(overlay, jpeg, detections, started)
                 self._record_success(len(detections), latency_ms)
+                self._maybe_auto_snapshot(jpeg, detections, started)
             except (CameraError, DetectorUnavailable, ConfigValidationError, ValueError) as exc:
                 self._record_error(str(exc))
                 self._publish_placeholder(str(exc))
@@ -186,6 +184,59 @@ class RuntimeService(object):
         jpeg = encode_jpeg(frame, config["jpeg_quality"])
         self.buffer.publish(frame, jpeg, [], time.time())
 
+    def _maybe_auto_snapshot(self, jpeg, detections, frame_ts, now=None):
+        config = self.get_config()
+        if not config.get("auto_snapshot_enabled", False):
+            return None
+        label = config.get("auto_snapshot_label", "person").strip().lower()
+        if not label:
+            return None
+        if not any((item.get("label") or "").lower() == label for item in detections):
+            return None
+
+        now = time.monotonic() if now is None else float(now)
+        cooldown = float(config.get("auto_snapshot_cooldown_seconds", 30.0))
+        if self._last_auto_snapshot_attempt_at is not None and now - self._last_auto_snapshot_attempt_at < cooldown:
+            return None
+        self._last_auto_snapshot_attempt_at = now
+
+        try:
+            directory = _capture_dir()
+            result = self._write_snapshot(directory, "auto-%s" % label.replace(" ", "-"), "auto", jpeg, detections, frame_ts)
+        except Exception as exc:
+            with self._lock:
+                self._last_status["auto_snapshot"]["last_error"] = str(exc)
+            return None
+
+        self._auto_snapshot_count += 1
+        with self._lock:
+            self._last_status["auto_snapshot"].update(
+                {
+                    "count": self._auto_snapshot_count,
+                    "last_trigger_ts": frame_ts,
+                    "last_image_path": result["image_path"],
+                    "last_metadata_path": result["metadata_path"],
+                    "last_error": None,
+                }
+            )
+        return result
+
+    def _write_snapshot(self, directory, prefix, snapshot_type, jpeg, detections, frame_ts):
+        os.makedirs(directory, exist_ok=True)
+        stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(frame_ts))
+        image_path, json_path = _snapshot_paths(directory, prefix, stamp)
+        with open(image_path, "wb") as handle:
+            handle.write(jpeg)
+        with open(json_path, "w") as handle:
+            json.dump(
+                {"frame_ts": frame_ts, "snapshot_type": snapshot_type, "detections": detections},
+                handle,
+                indent=2,
+                sort_keys=True,
+            )
+            handle.write("\n")
+        return {"image_path": image_path, "metadata_path": json_path, "detections": detections}
+
     def _initial_status(self):
         return {
             "health": "starting",
@@ -204,6 +255,16 @@ class RuntimeService(object):
             "last_frame_ts": None,
             "temperature_c": None,
             "memory": None,
+            "auto_snapshot": {
+                "enabled": bool(self.config.get("auto_snapshot_enabled", False)),
+                "label": self.config.get("auto_snapshot_label", "person"),
+                "cooldown_seconds": self.config.get("auto_snapshot_cooldown_seconds", 30.0),
+                "count": 0,
+                "last_trigger_ts": None,
+                "last_image_path": None,
+                "last_metadata_path": None,
+                "last_error": None,
+            },
         }
 
 
@@ -225,3 +286,20 @@ def mjpeg_stream(runtime):
         yield b"Content-Length: " + str(len(jpeg)).encode("ascii") + b"\r\n\r\n"
         yield jpeg
         yield b"\r\n"
+
+
+def _capture_dir():
+    return os.environ.get("JETSON_CAPTURE_DIR", os.path.abspath("captures"))
+
+
+def _snapshot_paths(directory, prefix, stamp):
+    safe_prefix = "".join(char if char.isalnum() or char in ("-", "_") else "-" for char in prefix).strip("-")
+    safe_prefix = safe_prefix or "snapshot"
+    image_path = os.path.join(directory, "%s-%s.jpg" % (safe_prefix, stamp))
+    json_path = os.path.join(directory, "%s-%s.json" % (safe_prefix, stamp))
+    index = 1
+    while os.path.exists(image_path) or os.path.exists(json_path):
+        image_path = os.path.join(directory, "%s-%s-%03d.jpg" % (safe_prefix, stamp, index))
+        json_path = os.path.join(directory, "%s-%s-%03d.json" % (safe_prefix, stamp, index))
+        index += 1
+    return image_path, json_path

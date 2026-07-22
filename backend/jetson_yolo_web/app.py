@@ -3,7 +3,7 @@ import os
 from flask import Flask, Response, jsonify, request, send_from_directory
 
 from .config import ConfigValidationError
-from .runtime import RuntimeService, mjpeg_stream
+from .runtime import RuntimeService, _capture_dir, mjpeg_stream
 
 
 def create_app(config_path=None, runtime=None, auto_start=True):
@@ -61,8 +61,7 @@ def create_app(config_path=None, runtime=None, auto_start=True):
 
     @app.route("/api/snapshot", methods=["POST"])
     def snapshot():
-        capture_dir = os.environ.get("JETSON_CAPTURE_DIR", os.path.abspath("captures"))
-        return jsonify(service.save_snapshot(capture_dir)), 201
+        return jsonify(service.save_snapshot(_capture_dir())), 201
 
     @app.route("/healthz")
     def healthz():

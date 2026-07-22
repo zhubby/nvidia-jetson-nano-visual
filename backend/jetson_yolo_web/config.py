@@ -18,6 +18,9 @@ DEFAULT_CONFIG = {
     "detector_backend": "auto",
     "jpeg_quality": 78,
     "retry_interval_seconds": 2.0,
+    "auto_snapshot_enabled": True,
+    "auto_snapshot_label": "person",
+    "auto_snapshot_cooldown_seconds": 30.0,
 }
 
 ALLOWED_KEYS = set(DEFAULT_CONFIG.keys())
@@ -47,6 +50,13 @@ def _env_int(name, default):
         return int(value)
     except ValueError:
         return default
+
+
+def _env_bool(name, default):
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
 
 
 def config_from_env():
@@ -85,6 +95,18 @@ def env_overrides(base=None):
         overrides["confidence"] = _env_float("JETSON_CONFIDENCE", DEFAULT_CONFIG["confidence"])
     if "JETSON_IOU" in os.environ:
         overrides["iou"] = _env_float("JETSON_IOU", DEFAULT_CONFIG["iou"])
+    if "JETSON_AUTO_SNAPSHOT_ENABLED" in os.environ:
+        overrides["auto_snapshot_enabled"] = _env_bool(
+            "JETSON_AUTO_SNAPSHOT_ENABLED", DEFAULT_CONFIG["auto_snapshot_enabled"]
+        )
+    if "JETSON_AUTO_SNAPSHOT_LABEL" in os.environ:
+        overrides["auto_snapshot_label"] = os.environ.get(
+            "JETSON_AUTO_SNAPSHOT_LABEL", DEFAULT_CONFIG["auto_snapshot_label"]
+        )
+    if "JETSON_AUTO_SNAPSHOT_COOLDOWN" in os.environ:
+        overrides["auto_snapshot_cooldown_seconds"] = _env_float(
+            "JETSON_AUTO_SNAPSHOT_COOLDOWN", DEFAULT_CONFIG["auto_snapshot_cooldown_seconds"]
+        )
     if "JETSON_WIDTH" in os.environ or "JETSON_HEIGHT" in os.environ:
         overrides["resolution"] = {
             "width": _env_int("JETSON_WIDTH", base["resolution"]["width"]),
@@ -139,6 +161,12 @@ def validate_config(config):
     normalized["retry_interval_seconds"] = _validate_float(
         "retry_interval_seconds", normalized.get("retry_interval_seconds"), 0.1, 30.0
     )
+    normalized["auto_snapshot_cooldown_seconds"] = _validate_float(
+        "auto_snapshot_cooldown_seconds", normalized.get("auto_snapshot_cooldown_seconds"), 1.0, 3600.0
+    )
+    auto_snapshot_enabled = normalized.get("auto_snapshot_enabled")
+    if not isinstance(auto_snapshot_enabled, bool):
+        raise ConfigValidationError("auto_snapshot_enabled must be a boolean.")
 
     allowlist = normalized.get("class_allowlist")
     if allowlist is None:
@@ -148,12 +176,13 @@ def validate_config(config):
     else:
         raise ConfigValidationError("class_allowlist must be a list of class labels.")
 
-    for string_key in ("camera_device", "camera_fourcc", "sample_video", "model_path"):
+    for string_key in ("camera_device", "camera_fourcc", "sample_video", "model_path", "auto_snapshot_label"):
         value = normalized.get(string_key)
         if value is None:
             normalized[string_key] = ""
         elif not isinstance(value, str):
             raise ConfigValidationError("%s must be a string." % string_key)
+    normalized["auto_snapshot_label"] = normalized["auto_snapshot_label"].strip() or "person"
     if normalized["camera_fourcc"] and len(normalized["camera_fourcc"]) != 4:
         raise ConfigValidationError("camera_fourcc must be a four-character code such as MJPG or YUYV.")
 

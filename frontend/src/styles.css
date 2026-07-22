@@ -488,6 +488,9 @@ select:focus-visible {
   gap: 18px;
   width: min(390px, 100vw);
   height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 22px;
   background: rgba(12, 15, 17, 0.98);
   border-left: 1px solid var(--line);
@@ -513,12 +516,26 @@ select:focus-visible {
   gap: 12px;
 }
 
+.toggle-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 42px;
+  padding: 0 2px;
+}
+
 .field.stacked {
   grid-template-columns: 1fr;
   gap: 7px;
 }
 
 .field span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.toggle-field span {
   color: var(--muted);
   font-size: 13px;
 }
@@ -541,6 +558,13 @@ select:focus-visible {
 .field input[type="range"] {
   accent-color: var(--nvidia);
   padding: 0;
+}
+
+.toggle-field input {
+  width: 44px;
+  height: 24px;
+  accent-color: var(--nvidia);
+  cursor: pointer;
 }
 
 .resolution-row {
@@ -617,6 +641,10 @@ select:focus-visible {
   .video-stream,
   .stream-placeholder {
     min-height: 0;
+  }
+
+  .settings-drawer .resolution-row {
+    grid-template-columns: 1fr;
   }
 
   .metrics-grid,

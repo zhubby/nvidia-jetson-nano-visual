@@ -29,7 +29,17 @@ const emptyStatus: RuntimeStatus = {
   last_error: null,
   last_frame_ts: null,
   temperature_c: null,
-  memory: null
+  memory: null,
+  auto_snapshot: {
+    enabled: true,
+    label: "person",
+    cooldown_seconds: 30,
+    count: 0,
+    last_trigger_ts: null,
+    last_image_path: null,
+    last_metadata_path: null,
+    last_error: null
+  }
 };
 
 const defaultConfig: RuntimeConfig = {
@@ -46,7 +56,10 @@ const defaultConfig: RuntimeConfig = {
   model_path: "models/yolov8n_fp16.engine",
   detector_backend: "auto",
   jpeg_quality: 78,
-  retry_interval_seconds: 2
+  retry_interval_seconds: 2,
+  auto_snapshot_enabled: true,
+  auto_snapshot_label: "person",
+  auto_snapshot_cooldown_seconds: 30
 };
 
 export default function App() {
@@ -66,7 +79,7 @@ export default function App() {
       try {
         const [nextStatus, nextDetections] = await Promise.all([getStatus(), getLatestDetections()]);
         if (!cancelled) {
-          setStatus(nextStatus);
+          setStatus(normalizeStatus(nextStatus));
           setDetections(nextDetections.detections);
           setApiError("");
         }
@@ -90,7 +103,7 @@ export default function App() {
     getConfig()
       .then((nextConfig) => {
         if (!cancelled) {
-          setConfig(nextConfig);
+          setConfig(normalizeConfig(nextConfig));
         }
       })
       .catch((error) => setApiError(error instanceof Error ? error.message : "Config unavailable"));
@@ -107,6 +120,7 @@ export default function App() {
 
   const healthTone = status.health === "running" ? "ok" : status.health === "thermal_warning" ? "warn" : "bad";
   const streamUrl = `${API_BASE}/stream.mjpg?view=${streamKey}`;
+  const visibleError = apiError || status.last_error || status.auto_snapshot.last_error;
 
   async function saveSettings() {
     try {
@@ -241,6 +255,7 @@ export default function App() {
             </div>
             <dl className="system-list">
               <div><dt>Detector</dt><dd>{status.model.backend}</dd></div>
+              <div><dt>Auto Snap</dt><dd>{status.auto_snapshot.enabled ? `${status.auto_snapshot.count} saved` : "Off"}</dd></div>
               <div><dt>Threshold</dt><dd>{Math.round(config.confidence * 100)}%</dd></div>
               <div><dt>IOU</dt><dd>{Math.round(config.iou * 100)}%</dd></div>
               <div><dt>Dropped</dt><dd>{status.dropped_frames}</dd></div>
@@ -249,9 +264,9 @@ export default function App() {
         </aside>
       </section>
 
-      {(notice || apiError || status.last_error) && (
-        <div className={`toast ${apiError || status.last_error ? "error" : "success"}`} role="status">
-          {apiError || notice || status.last_error}
+      {(notice || visibleError) && (
+        <div className={`toast ${visibleError ? "error" : "success"}`} role="status">
+          {visibleError || notice}
         </div>
       )}
 
@@ -380,6 +395,38 @@ function SettingsDrawer({
         />
       </label>
 
+      <label className="toggle-field">
+        <span>Auto person snapshot</span>
+        <input
+          aria-label="Auto person snapshot"
+          type="checkbox"
+          checked={config.auto_snapshot_enabled}
+          onChange={(event) => update("auto_snapshot_enabled", event.target.checked)}
+        />
+      </label>
+
+      <div className="resolution-row">
+        <label className="field stacked">
+          <span>Snapshot class</span>
+          <input
+            aria-label="Snapshot class"
+            value={config.auto_snapshot_label}
+            onChange={(event) => update("auto_snapshot_label", event.target.value)}
+          />
+        </label>
+        <label className="field stacked">
+          <span>Cooldown seconds</span>
+          <input
+            aria-label="Cooldown seconds"
+            type="number"
+            min="1"
+            max="3600"
+            value={config.auto_snapshot_cooldown_seconds}
+            onChange={(event) => update("auto_snapshot_cooldown_seconds", Number(event.target.value))}
+          />
+        </label>
+      </div>
+
       <div className="resolution-row">
         <label className="field stacked">
           <span>Width</span>
@@ -459,4 +506,23 @@ function labelForHealth(health: string) {
 
 function shortPath(path: string) {
   return path.split("/").slice(-1)[0] || path;
+}
+
+function normalizeStatus(status: RuntimeStatus): RuntimeStatus {
+  return {
+    ...emptyStatus,
+    ...status,
+    camera: { ...emptyStatus.camera, ...status.camera },
+    model: { ...emptyStatus.model, ...status.model },
+    auto_snapshot: { ...emptyStatus.auto_snapshot, ...(status.auto_snapshot || {}) }
+  };
+}
+
+function normalizeConfig(config: RuntimeConfig): RuntimeConfig {
+  return {
+    ...defaultConfig,
+    ...config,
+    resolution: { ...defaultConfig.resolution, ...config.resolution },
+    class_allowlist: config.class_allowlist || []
+  };
 }

@@ -15,5 +15,8 @@
   "model_path": "models/yolov8n_fp16.engine",
   "detector_backend": "auto",
   "jpeg_quality": 78,
-  "retry_interval_seconds": 2.0
+  "retry_interval_seconds": 2.0,
+  "auto_snapshot_enabled": true,
+  "auto_snapshot_label": "person",
+  "auto_snapshot_cooldown_seconds": 30.0
 }
