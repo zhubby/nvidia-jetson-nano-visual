@@ -111,11 +111,16 @@ class RuntimeService(object):
             started = time.time()
             try:
                 self._ensure_runtime_objects()
-                ok, frame = self.frame_source.read()
+                frame_source = self.frame_source
+                detector = self.detector
+                if frame_source is None or detector is None:
+                    time.sleep(0.01)
+                    continue
+                ok, frame = frame_source.read()
                 if not ok:
                     raise CameraError("Frame source returned no frame.")
                 detect_started = time.time()
-                detections = self.detector.detect(frame, self.config)
+                detections = detector.detect(frame, self.config)
                 latency_ms = (time.time() - detect_started) * 1000.0
                 overlay = draw_overlay(frame, detections)
                 jpeg = encode_jpeg(overlay, self.config["jpeg_quality"])
@@ -160,6 +165,7 @@ class RuntimeService(object):
                     "fps": round(fps, 2),
                     "latency_ms": round(latency_ms, 1),
                     "detection_count": int(detection_count),
+                    "last_error": None,
                     "last_frame_ts": now,
                 }
             )

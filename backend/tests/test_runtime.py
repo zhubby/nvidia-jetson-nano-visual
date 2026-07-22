@@ -142,6 +142,15 @@ def test_manual_snapshot_metadata_marks_manual(tmp_path):
     assert metadata["snapshot_type"] == "manual"
 
 
+def test_success_status_clears_previous_error():
+    runtime = RuntimeService(config=dict(DEFAULT_CONFIG))
+    runtime._record_error("temporary failure")
+
+    runtime._record_success(1, 12.3)
+
+    assert runtime.status()["last_error"] is None
+
+
 class FakeFrameSource(object):
     def read(self):
         return True, np.zeros((32, 32, 3), dtype=np.uint8)
